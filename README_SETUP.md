@@ -9,22 +9,28 @@ de inteligência competitiva enviados via Telegram.
 
 ---
 
-## Deploy na Nuvem (Recomendado)
+## Deploy com 1 Clique no Railway
 
-### Opção 1: Railway (Mais fácil — 1 clique)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template?referralCode=ropodds)
 
-1. Crie uma conta grátis em [railway.app](https://railway.app)
-2. Clique em **"New Project" → "Deploy from GitHub Repo"**
-3. Selecione este repositório
-4. Na aba **Variables**, adicione:
-   - `TELEGRAM_BOT_TOKEN` = token do seu bot (veja abaixo como criar)
-   - `TELEGRAM_CHAT_ID` = ID do grupo Telegram
-   - `API_KEY` = uma senha qualquer para proteger a API
-   - `SCHEDULE_TIMES` = `09:00,14:00,17:00,19:00`
-   - `TIMEZONE` = `America/Sao_Paulo`
-5. Clique **Deploy** — pronto!
+### Passo a passo:
 
-Railway dá um domínio grátis (ex: `ropodds-production.up.railway.app`).
+1. Clique no botão acima (ou acesse [railway.app](https://railway.app))
+2. Faça login com sua conta GitHub
+3. Clique **"New Project" → "Deploy from GitHub Repo"**
+4. Selecione o repositório **ropodds**
+5. Vá na aba **"Variables"** e adicione:
+
+| Variável | Valor |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | (token do @BotFather) |
+| `TELEGRAM_CHAT_ID` | (ID do grupo — veja instruções abaixo) |
+| `API_KEY` | `ropodds2026` |
+| `SCHEDULE_TIMES` | `09:00,14:00,17:00,19:00` |
+| `TIMEZONE` | `America/Sao_Paulo` |
+
+6. Clique **Deploy** — aguarde ~3 minutos
+7. Railway gera um domínio automático (ex: `ropodds-production.up.railway.app`)
 
 ### Opção 2: Render
 
