@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROP Odds — Dashboard</title>
+    <style>
+        :root {
+            --primary: #0d47a1;
+            --primary-light: #1565c0;
+            --success: #2e7d32;
+            --warning: #f57f17;
+            --danger: #c62828;
+            --bg: #f5f5f5;
+            --card-bg: #ffffff;
+            --text: #212121;
+            --text-muted: #757575;
+            --border: #e0e0e0;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        .navbar {
+            background: var(--primary);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .navbar h1 { font-size: 1.3rem; font-weight: 600; }
+        .navbar .subtitle { opacity: 0.8; font-size: 0.85rem; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border-left: 4px solid var(--primary);
+        }
+        .stat-card.success { border-left-color: var(--success); }
+        .stat-card.warning { border-left-color: var(--warning); }
+        .stat-card.danger { border-left-color: var(--danger); }
+        .stat-card .label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-card .value { font-size: 2rem; font-weight: 700; margin: 0.25rem 0; }
+        .stat-card.success .value { color: var(--success); }
+        .stat-card.warning .value { color: var(--warning); }
+        .stat-card.danger .value { color: var(--danger); }
+
+        /* Sections */
+        .section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .section h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        /* Alerts Table */
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 0.75rem; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; border-bottom: 2px solid var(--border); }
+        td { padding: 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        tr:hover { background: #f8f9fa; }
+
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-above { background: #e8f5e9; color: var(--success); }
+        .badge-below { background: #fff3e0; color: var(--warning); }
+        .badge-high { background: #ffebee; color: var(--danger); }
+
+        /* Report View */
+        .report-text {
+            background: #263238;
+            color: #e0e0e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            line-height: 1.8;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+        .tab {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            background: var(--card-bg);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .tab:hover { background: var(--primary); color: white; }
+        .tab.active { background: var(--primary); color: white; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Date Picker */
+        .controls { display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .controls input[type="date"] {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        .btn {
+            padding: 0.5rem 1.2rem;
+            border: none;
+            background: var(--primary);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: var(--primary-light); }
+
+        .loading { text-align: center; padding: 2rem; color: var(--text-muted); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .tabs { flex-wrap: wrap; }
+            table { font-size: 0.8rem; }
+            td, th { padding: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div>
+            <h1>📊 ROP Odds Dashboard</h1>
+            <div class="subtitle">Inteligência Competitiva — ROP Soluções / DP Sports</div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="label">Jogos Analisados Hoje</div>
+                <div class="value" id="stat-events">-</div>
+            </div>
+            <div class="stat-card success">
+                <div class="label">ROP Acima da Média</div>
+                <div class="value" id="stat-above">-</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="label">ROP Abaixo da Média</div>
+                <div class="value" id="stat-below">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Relatórios Hoje</div>
+                <div class="value" id="stat-reports">-</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <input type="date" id="date-filter" />
+            <button class="btn" onclick="loadData()">Filtrar</button>
+            <button class="btn" onclick="loadToday()">Hoje</button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('alerts')">⚡ Alertas</button>
+            <button class="tab" onclick="switchTab('reports')">📋 Relatórios</button>
+            <button class="tab" onclick="switchTab('history')">📈 Histórico</button>
+        </div>
+
+        <!-- Alerts Tab -->
+        <div id="tab-alerts" class="tab-content active">
+            <div class="section">
+                <h2>Alertas Recentes</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Jogo</th>
+                            <th>Campeonato</th>
+                            <th>Mercado</th>
+                            <th>ROP</th>
+                            <th>Média</th>
+                            <th>Desvio</th>
+                            <th>Tipo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alerts-table"></tbody>
+                </table>
+                <div class="loading" id="alerts-loading">Carregando alertas...</div>
+            </div>
+        </div>
+
+        <!-- Reports Tab -->
+        <div id="tab-reports" class="tab-content">
+            <div class="section">
+                <h2>Relatórios Gerados</h2>
+                <div id="reports-list"></div>
+                <div class="loading" id="reports-loading">Carregando relatórios...</div>
+            </div>
+            <div class="section" id="report-detail" style="display:none;">
+                <h2>Relatório Completo</h2>
+                <div class="report-text" id="report-text"></div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="tab-history" class="tab-content">
+            <div class="section">
+                <h2>Estatísticas Diárias (Últimos 7 dias)</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Jogos</th>
+                            <th>✅ Acima</th>
+                            <th>⚠️ Abaixo</th>
+                            <th>Relatórios</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table"></tbody>
+                </table>
+                <div class="loading" id="history-loading">Carregando histórico...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('date-filter').value = today;
+
+        // Load dashboard data
+        async function loadData() {
+            const date = document.getElementById('date-filter').value;
+            await Promise.all([
+                loadDashboard(),
+                loadAlerts(date),
+                loadReports(date),
+                loadHistory(),
+            ]);
+        }
+
+        function loadToday() {
+            document.getElementById('date-filter').value = today;
+            loadData();
+        }
+
+        async function loadDashboard() {
+            try {
+                const resp = await fetch('/api/dashboard');
+                const data = await resp.json();
+                document.getElementById('stat-events').textContent = data.today.total_events || '0';
+                document.getElementById('stat-above').textContent = data.today.alerts_above || '0';
+                document.getElementById('stat-below').textContent = data.today.alerts_below || '0';
+                document.getElementById('stat-reports').textContent = data.today.total_reports || '0';
+            } catch (e) {
+                console.error('Dashboard load error:', e);
+            }
+        }
+
+        async function loadAlerts(date) {
+            const loading = document.getElementById('alerts-loading');
+            const table = document.getElementById('alerts-table');
+            loading.style.display = 'block';
+            table.innerHTML = '';
+
+            try {
+                const url = date ? `/api/alerts?date=${date}` : '/api/alerts';
+                const resp = await fetch(url);
+                const alerts = await resp.json();
+
+                if (alerts.length === 0) {
+                    loading.textContent = 'Nenhum alerta encontrado.';
+                    return;
+                }
+
+                loading.style.display = 'none';
+                for (const a of alerts) {
+                    const row = document.createElement('tr');
+                    const typeBadge = a.alert_type === 'above'
+                        ? '<span class="badge badge-above">✅ Acima</span>'
+                        : '<span class="badge badge-below">⚠️ Abaixo</span>';
+                    const severityBadge = a.severity === 'high'
+                        ? '<span class="badge badge-high">Alta</span>'
+                        : '';
+
+                    row.innerHTML = `
+                        <td><strong>${a.home_team}</strong> vs <strong>${a.away_team}</strong></td>
+                        <td>${a.championship || '-'}</td>
+                        <td>${a.market}</td>
+                        <td><strong>${a.rop_odd?.toFixed(2) || '-'}</strong></td>
+                        <td>${a.market_avg?.toFixed(2) || '-'}</td>
+                        <td>${a.deviation_pct > 0 ? '+' : ''}${a.deviation_pct?.toFixed(1)}%</td>
+                        <td>${typeBadge} ${severityBadge}</td>
+                    `;
+                    table.appendChild(row);
+                }
+            } catch (e) {
+                loading.textContent = 'Erro ao carregar alertas.';
+                console.error(e);
+            }
+        }
+
+        async function loadReports(date) {
+            const loading = document.getElementById('reports-loading');
+            const list = document.getElementById('reports-list');
+            loading.style.display = 'block';
+            list.innerHTML = '';
+
+            try {
+                const url = date ? `/api/reports?date=${date}` : '/api/reports';
+                const resp = await fetch(url);
+                const reports = await resp.json();
+
+                if (reports.length === 0) {
+                    loading.textContent = 'Nenhum relatório encontrado.';
+                    return;
+                }
+
+                loading.style.display = 'none';
+                for (const r of reports) {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'padding:0.75rem;border-bottom:1px solid #e0e0e0;cursor:pointer;';
+                    div.innerHTML = `
+                        <strong>${r.date} — ${r.time}</strong> |
+                        ${r.total_events} jogos |
+                        ✅ ${r.alerts_above} acima |
+                        ⚠️ ${r.alerts_below} abaixo
+                    `;
+                    div.onclick = () => loadReportDetail(r.id);
+                    list.appendChild(div);
+                }
+            } catch (e) {
+                loading.textContent = 'Erro ao carregar relatórios.';
+            }
+        }
+
+        async function loadReportDetail(id) {
+            try {
+                const resp = await fetch(`/api/reports/${id}`);
+                const report = await resp.json();
+                document.getElementById('report-text').textContent = report.text;
+                document.getElementById('report-detail').style.display = 'block';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function loadHistory() {
+            const loading = document.getElementById('history-loading');
+            const table = document.getElementById('history-table');
+            loading.style.display = 'block';
+            table.innerHTML = '';
+
+            try {
+                const resp = await fetch('/api/stats/daily?days=7');
+                const stats = await resp.json();
+
+                if (stats.length === 0) {
+                    loading.textContent = 'Nenhum dado histórico disponível.';
+                    return;
+                }
+
+                loading.style.display = 'none';
+                for (const s of stats) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${s.date}</td>
+                        <td>${s.total_events}</td>
+                        <td style="color:var(--success)">${s.alerts_above}</td>
+                        <td style="color:var(--warning)">${s.alerts_below}</td>
+                        <td>${s.reports_count}</td>
+                    `;
+                    table.appendChild(row);
+                }
+            } catch (e) {
+                loading.textContent = 'Erro ao carregar histórico.';
+            }
+        }
+
+        function switchTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(`tab-${name}`).classList.add('active');
+        }
+
+        // Initial load
+        loadData();
+    </script>
+</body>
+</html>
