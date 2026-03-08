@@ -65,7 +65,10 @@ def create_app(SessionFactory) -> Flask:
             today_alerts = (
                 session.query(Alert)
                 .join(ScrapeSession)
-                .filter(DailyReport.report_date == today)
+                .filter(
+                    ScrapeSession.started_at >= datetime.strptime(today, "%Y-%m-%d"),
+                    ScrapeSession.started_at < datetime.strptime(today, "%Y-%m-%d") + timedelta(days=1),
+                )
                 .all()
             )
 
