@@ -1,18 +1,16 @@
 # =============================================================
 # CONFIGURAÇÃO DOS SITES - ROP Odds Mapping System
 # =============================================================
-# Preencha as URLs e seletores CSS de cada site.
-# Use o inspetor do navegador (F12) para encontrar os seletores.
+# URLs dos sites de apostas monitorados.
+# Os seletores CSS são descobertos automaticamente pelo scraper.
 # =============================================================
 
 main_site:
   name: "ROP/DP Sports"
   short_name: "ROP"
   url: "https://www.ropsolucoes.com"
-  # O parâmetro de data será adicionado automaticamente: ?startTimeUtc=YYYY-MM-DD
   date_param: "startTimeUtc"
   selectors:
-    # Seletores CSS para extrair dados da página
     event_container: ".event-card, .match-row, [data-testid='event']"
     home_team: ".home-team, .team-home"
     away_team: ".away-team, .team-away"
@@ -23,7 +21,16 @@ main_site:
 competitors:
   - name: "ProSporte"
     short_name: "ProSporte"
-    url: ""
+    url: "https://prosporte.com"
+    selectors:
+      event_container: ""
+      home_team: ""
+      away_team: ""
+      odds_1x2: ""
+
+  - name: "SportBet Brasil"
+    short_name: "SportBetBrasil"
+    url: "https://sportbetbrasil.vip"
     selectors:
       event_container: ""
       home_team: ""
@@ -32,7 +39,7 @@ competitors:
 
   - name: "TeamBets"
     short_name: "TeamBets"
-    url: ""
+    url: "https://teambets.com.br"
     selectors:
       event_container: ""
       home_team: ""
@@ -41,52 +48,7 @@ competitors:
 
   - name: "VegasPrime"
     short_name: "VegasPrime"
-    url: ""
-    selectors:
-      event_container: ""
-      home_team: ""
-      away_team: ""
-      odds_1x2: ""
-
-  - name: "MiamiBets"
-    short_name: "MiamiBets"
-    url: ""
-    selectors:
-      event_container: ""
-      home_team: ""
-      away_team: ""
-      odds_1x2: ""
-
-  - name: "TeamTop"
-    short_name: "TeamTop"
-    url: ""
-    selectors:
-      event_container: ""
-      home_team: ""
-      away_team: ""
-      odds_1x2: ""
-
-  - name: "TMJBet"
-    short_name: "TMJBet"
-    url: ""
-    selectors:
-      event_container: ""
-      home_team: ""
-      away_team: ""
-      odds_1x2: ""
-
-  - name: "MundoBets"
-    short_name: "MundoBets"
-    url: ""
-    selectors:
-      event_container: ""
-      home_team: ""
-      away_team: ""
-      odds_1x2: ""
-
-  - name: "SportBetBrasil"
-    short_name: "SportBetBrasil"
-    url: ""
+    url: "https://vegasprime.net"
     selectors:
       event_container: ""
       home_team: ""
@@ -95,7 +57,52 @@ competitors:
 
   - name: "Fanáticos Sportes"
     short_name: "Fanáticos"
-    url: ""
+    url: "https://fanaticossportes.com"
+    selectors:
+      event_container: ""
+      home_team: ""
+      away_team: ""
+      odds_1x2: ""
+
+  - name: "ScoutzBet"
+    short_name: "ScoutzBet"
+    url: "https://scoutzbet.com"
+    selectors:
+      event_container: ""
+      home_team: ""
+      away_team: ""
+      odds_1x2: ""
+
+  - name: "MiamiBets"
+    short_name: "MiamiBets"
+    url: "https://miamibets.com.br"
+    selectors:
+      event_container: ""
+      home_team: ""
+      away_team: ""
+      odds_1x2: ""
+
+  - name: "TeamTop"
+    short_name: "TeamTop"
+    url: "https://teamtop.vip"
+    selectors:
+      event_container: ""
+      home_team: ""
+      away_team: ""
+      odds_1x2: ""
+
+  - name: "TMJBet"
+    short_name: "TMJBet"
+    url: "https://tmjbet.net"
+    selectors:
+      event_container: ""
+      home_team: ""
+      away_team: ""
+      odds_1x2: ""
+
+  - name: "MundoBets"
+    short_name: "MundoBets"
+    url: "https://mundobets.com.br"
     selectors:
       event_container: ""
       home_team: ""

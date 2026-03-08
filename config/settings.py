@@ -39,15 +39,16 @@ MAIN_SITE = {
 }
 
 COMPETITOR_SITES = [
-    {"name": "ProSporte", "short_name": "ProSporte", "url": "", "type": "competitor"},
-    {"name": "TeamBets", "short_name": "TeamBets", "url": "", "type": "competitor"},
-    {"name": "VegasPrime", "short_name": "VegasPrime", "url": "", "type": "competitor"},
-    {"name": "MiamiBets", "short_name": "MiamiBets", "url": "", "type": "competitor"},
-    {"name": "TeamTop", "short_name": "TeamTop", "url": "", "type": "competitor"},
-    {"name": "TMJBet", "short_name": "TMJBet", "url": "", "type": "competitor"},
-    {"name": "MundoBets", "short_name": "MundoBets", "url": "", "type": "competitor"},
-    {"name": "SportBetBrasil", "short_name": "SportBetBrasil", "url": "", "type": "competitor"},
-    {"name": "Fanáticos Sportes", "short_name": "Fanáticos", "url": "", "type": "competitor"},
+    {"name": "ProSporte", "short_name": "ProSporte", "url": "https://prosporte.com", "type": "competitor"},
+    {"name": "SportBet Brasil", "short_name": "SportBetBrasil", "url": "https://sportbetbrasil.vip", "type": "competitor"},
+    {"name": "TeamBets", "short_name": "TeamBets", "url": "https://teambets.com.br", "type": "competitor"},
+    {"name": "VegasPrime", "short_name": "VegasPrime", "url": "https://vegasprime.net", "type": "competitor"},
+    {"name": "Fanáticos Sportes", "short_name": "Fanáticos", "url": "https://fanaticossportes.com", "type": "competitor"},
+    {"name": "ScoutzBet", "short_name": "ScoutzBet", "url": "https://scoutzbet.com", "type": "competitor"},
+    {"name": "MiamiBets", "short_name": "MiamiBets", "url": "https://miamibets.com.br", "type": "competitor"},
+    {"name": "TeamTop", "short_name": "TeamTop", "url": "https://teamtop.vip", "type": "competitor"},
+    {"name": "TMJBet", "short_name": "TMJBet", "url": "https://tmjbet.net", "type": "competitor"},
+    {"name": "MundoBets", "short_name": "MundoBets", "url": "https://mundobets.com.br", "type": "competitor"},
 ]
 
 ALL_SITES = [MAIN_SITE] + COMPETITOR_SITES
