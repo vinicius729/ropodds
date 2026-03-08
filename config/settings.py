@@ -11,10 +11,13 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 SCHEDULE_TIMES = os.getenv("SCHEDULE_TIMES", "09:00,14:00,17:00,19:00").split(",")
 TIMEZONE = os.getenv("TIMEZONE", "America/Sao_Paulo")
 
-# Dashboard
+# Dashboard — PORT env is set by Railway/Render/Fly.io automatically
 DASHBOARD_HOST = os.getenv("DASHBOARD_HOST", "0.0.0.0")
-DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "5000"))
+DASHBOARD_PORT = int(os.getenv("PORT", os.getenv("DASHBOARD_PORT", "5000")))
 DASHBOARD_SECRET_KEY = os.getenv("DASHBOARD_SECRET_KEY", "rop-odds-secret-key")
+
+# API Key for webhook authentication
+API_KEY = os.getenv("API_KEY", "rop-default-api-key")
 
 # Alert Thresholds (percentage)
 ALERT_THRESHOLD_ABOVE = float(os.getenv("ALERT_THRESHOLD_ABOVE", "3.0"))

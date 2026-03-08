@@ -241,9 +241,10 @@ async def main():
         return
 
     if args.dashboard:
-        from dashboard.app import create_app
-        app = create_app(system.Session)
+        from dashboard.app import create_app, set_system_instance
         from config.settings import DASHBOARD_HOST, DASHBOARD_PORT
+        app = create_app(system.Session)
+        set_system_instance(system)
         app.run(host=DASHBOARD_HOST, port=DASHBOARD_PORT, debug=True)
         return
 
@@ -265,16 +266,17 @@ async def main():
         print(report)
         return
 
-    # Default: start scheduler + dashboard
+    # Default: start scheduler + dashboard (cloud mode)
     scheduler = system.start_scheduler()
 
-    # Start dashboard in background
-    from dashboard.app import create_app
+    from dashboard.app import create_app, set_system_instance
     from config.settings import DASHBOARD_HOST, DASHBOARD_PORT
 
     app = create_app(system.Session)
+    set_system_instance(system)  # Wire up webhook endpoints
 
     logger.info(f"Dashboard: http://{DASHBOARD_HOST}:{DASHBOARD_PORT}")
+    logger.info(f"Input form: http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/input")
     logger.info("System running. Press Ctrl+C to stop.")
 
     # Run Flask in a thread

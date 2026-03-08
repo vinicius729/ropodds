@@ -1,13 +1,36 @@
 """Flask web dashboard for the ROP Odds Mapping System."""
 
+import asyncio
 import json
+import logging
 from datetime import datetime, timedelta
+from functools import wraps
 
 from flask import Flask, render_template, jsonify, request
-from sqlalchemy.orm import Session as DBSession
 
-from config.settings import DASHBOARD_SECRET_KEY
+from config.settings import DASHBOARD_SECRET_KEY, API_KEY
 from models import ScrapeSession, OddsRecord, Alert, DailyReport
+
+logger = logging.getLogger(__name__)
+
+# Reference to the system instance — set by main.py
+_system_instance = None
+
+
+def set_system_instance(system):
+    global _system_instance
+    _system_instance = system
+
+
+def require_api_key(f):
+    """Decorator to require API key for webhook endpoints."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        key = request.headers.get("X-API-Key") or request.args.get("api_key")
+        if key != API_KEY:
+            return jsonify({"error": "Unauthorized. Provide X-API-Key header."}), 401
+        return f(*args, **kwargs)
+    return decorated
 
 
 def create_app(SessionFactory) -> Flask:
@@ -225,5 +248,118 @@ def create_app(SessionFactory) -> Flask:
             return jsonify(list(daily.values()))
         finally:
             session.close()
+
+    # ========================================
+    # WEBHOOK ENDPOINTS — Input Manual via API
+    # ========================================
+
+    @app.route("/api/webhook/manual", methods=["POST"])
+    @require_api_key
+    def webhook_manual_input():
+        """
+        Submit odds data manually via API.
+
+        POST body (JSON):
+        {
+            "data": "Jogo: Time A vs Time B\nCampeonato: LaLiga\n...",
+            "date": "2026-03-08"  (optional)
+        }
+
+        Or POST body (plain text):
+        Raw odds data in template format.
+        """
+        if _system_instance is None:
+            return jsonify({"error": "System not initialized"}), 503
+
+        # Accept JSON or plain text
+        if request.is_json:
+            body = request.get_json()
+            input_text = body.get("data", "")
+            target_date = body.get("date", "")
+        else:
+            input_text = request.get_data(as_text=True)
+            target_date = request.args.get("date", "")
+
+        if not input_text.strip():
+            return jsonify({"error": "No data provided"}), 400
+
+        try:
+            loop = asyncio.new_event_loop()
+            report = loop.run_until_complete(
+                _system_instance.run_manual_analysis(input_text, target_date)
+            )
+            loop.close()
+
+            return jsonify({
+                "status": "ok",
+                "report": report,
+                "message": "Relatório gerado e enviado ao Telegram.",
+            })
+        except Exception as e:
+            logger.error(f"Webhook manual error: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/webhook/scrape", methods=["POST"])
+    @require_api_key
+    def webhook_trigger_scrape():
+        """
+        Trigger a full scrape + analysis cycle via API.
+
+        POST body (JSON, optional):
+        {
+            "date": "2026-03-08"
+        }
+        """
+        if _system_instance is None:
+            return jsonify({"error": "System not initialized"}), 503
+
+        target_date = None
+        if request.is_json:
+            target_date = request.get_json().get("date")
+
+        try:
+            loop = asyncio.new_event_loop()
+            report = loop.run_until_complete(
+                _system_instance.run_analysis(target_date)
+            )
+            loop.close()
+
+            return jsonify({
+                "status": "ok",
+                "report": report,
+                "message": "Scraping e análise concluídos. Relatório enviado ao Telegram.",
+            })
+        except Exception as e:
+            logger.error(f"Webhook scrape error: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/webhook/test-telegram", methods=["POST"])
+    @require_api_key
+    def webhook_test_telegram():
+        """Test Telegram connection."""
+        if _system_instance is None:
+            return jsonify({"error": "System not initialized"}), 503
+
+        try:
+            loop = asyncio.new_event_loop()
+            result = loop.run_until_complete(
+                _system_instance.telegram.test_connection()
+            )
+            loop.close()
+
+            return jsonify({
+                "status": "ok" if result else "error",
+                "connected": result,
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ========================================
+    # INPUT PAGE — Formulário web para colar dados
+    # ========================================
+
+    @app.route("/input")
+    def input_page():
+        return render_template("input.html")
 
     return app

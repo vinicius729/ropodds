@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROP Odds — Enviar Dados</title>
+    <style>
+        :root { --primary: #0d47a1; --success: #2e7d32; --danger: #c62828; --bg: #f5f5f5; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: #212121; }
+        .navbar { background: var(--primary); color: white; padding: 1rem 2rem; }
+        .navbar h1 { font-size: 1.3rem; }
+        .navbar a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.85rem; }
+        .container { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
+        .card { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        h2 { font-size: 1.1rem; margin-bottom: 1rem; }
+        label { display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem; }
+        textarea {
+            width: 100%; min-height: 400px; padding: 1rem;
+            border: 2px solid #e0e0e0; border-radius: 8px;
+            font-family: 'Courier New', monospace; font-size: 0.85rem;
+            line-height: 1.6; resize: vertical;
+        }
+        textarea:focus { outline: none; border-color: var(--primary); }
+        .row { display: flex; gap: 1rem; align-items: end; margin: 1rem 0; flex-wrap: wrap; }
+        input[type="date"], input[type="text"] {
+            padding: 0.6rem 1rem; border: 2px solid #e0e0e0;
+            border-radius: 8px; font-size: 0.9rem;
+        }
+        .btn {
+            padding: 0.7rem 2rem; border: none; border-radius: 8px;
+            font-size: 1rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #1565c0; }
+        .btn-primary:disabled { background: #90caf9; cursor: not-allowed; }
+        .result { margin-top: 1.5rem; }
+        .result-box {
+            background: #263238; color: #e0e0e0; border-radius: 8px;
+            padding: 1.5rem; font-family: 'Courier New', monospace;
+            font-size: 0.85rem; white-space: pre-wrap; line-height: 1.8;
+            max-height: 500px; overflow-y: auto;
+        }
+        .status { padding: 0.75rem 1rem; border-radius: 8px; margin: 1rem 0; font-weight: 500; }
+        .status-success { background: #e8f5e9; color: var(--success); }
+        .status-error { background: #ffebee; color: var(--danger); }
+        .status-loading { background: #e3f2fd; color: var(--primary); }
+        .template-hint { background: #fff8e1; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.85rem; line-height: 1.6; }
+        .copy-btn { background: #455a64; color: white; padding: 0.4rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.8rem; float: right; }
+        .copy-btn:hover { background: #607d8b; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <h1>📊 ROP Odds — Enviar Dados</h1>
+        <a href="/">← Voltar ao Dashboard</a>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>📝 Colar Dados de Odds</h2>
+
+            <div class="template-hint">
+                <strong>💡 Formato esperado:</strong> Cole os dados no formato do template.
+                Cada jogo começa com "Jogo:" seguido dos times. Veja o exemplo pré-preenchido abaixo.
+            </div>
+
+            <label for="api-key">Chave de API:</label>
+            <div class="row">
+                <input type="text" id="api-key" placeholder="Sua API_KEY do .env" style="flex:1;" />
+                <input type="date" id="target-date" />
+            </div>
+
+            <label for="odds-data">Dados de Odds:</label>
+            <textarea id="odds-data" placeholder="Cole aqui os dados coletados...">Jogo: Atlético Madrid vs Real Sociedad
+Campeonato: LaLiga
+Horário: 14:30 BRT
+
+# Odds 1X2 (Casa, Empate, Fora)
+ROP: 1.54, 3.43, 4.18
+ProSporte: 1.60, 3.30, 4.25
+TeamBets: 1.65, 3.61, 4.47
+VegasPrime: 1.62, 3.35, 4.30
+MiamiBets: 1.63, 3.28, 4.20
+TeamTop: 1.66, 3.40, 4.35
+TMJBet: 1.61, 3.32, 4.28
+MundoBets: 1.64, 3.38, 4.33
+SportBetBrasil: 1.62, 3.30, 4.25
+Fanáticos: 1.68, 3.36, 4.40
+
+# Ambos Marcam (Sim, Não)
+ROP: 1.55, 1.87
+
+# Mais/Menos 2.5 Gols (Mais, Menos)
+ROP: 1.59, 1.81</textarea>
+
+            <div class="row">
+                <button class="btn btn-primary" id="submit-btn" onclick="submitData()">
+                    🚀 Gerar Relatório e Enviar ao Telegram
+                </button>
+            </div>
+
+            <div id="status"></div>
+
+            <div class="result" id="result-area" style="display:none;">
+                <h2>
+                    📋 Relatório Gerado
+                    <button class="copy-btn" onclick="copyReport()">📋 Copiar</button>
+                </h2>
+                <div class="result-box" id="report-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('target-date').value = new Date().toISOString().split('T')[0];
+
+        async function submitData() {
+            const apiKey = document.getElementById('api-key').value.trim();
+            const data = document.getElementById('odds-data').value.trim();
+            const date = document.getElementById('target-date').value;
+            const btn = document.getElementById('submit-btn');
+            const status = document.getElementById('status');
+
+            if (!apiKey) {
+                status.innerHTML = '<div class="status status-error">⚠️ Informe a chave de API.</div>';
+                return;
+            }
+            if (!data) {
+                status.innerHTML = '<div class="status status-error">⚠️ Cole os dados de odds.</div>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Processando...';
+            status.innerHTML = '<div class="status status-loading">⏳ Analisando odds e gerando relatório...</div>';
+
+            try {
+                const resp = await fetch('/api/webhook/manual', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey,
+                    },
+                    body: JSON.stringify({ data: data, date: date }),
+                });
+
+                const result = await resp.json();
+
+                if (resp.ok) {
+                    status.innerHTML = '<div class="status status-success">✅ Relatório gerado e enviado ao Telegram!</div>';
+                    document.getElementById('report-output').textContent = result.report;
+                    document.getElementById('result-area').style.display = 'block';
+                } else {
+                    status.innerHTML = `<div class="status status-error">❌ Erro: ${result.error}</div>`;
+                }
+            } catch (e) {
+                status.innerHTML = `<div class="status status-error">❌ Erro de conexão: ${e.message}</div>`;
+            }
+
+            btn.disabled = false;
+            btn.textContent = '🚀 Gerar Relatório e Enviar ao Telegram';
+        }
+
+        function copyReport() {
+            const text = document.getElementById('report-output').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = '✅ Copiado!';
+                setTimeout(() => btn.textContent = '📋 Copiar', 2000);
+            });
+        }
+    </script>
+</body>
+</html>

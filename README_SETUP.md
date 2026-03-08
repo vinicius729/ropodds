@@ -5,71 +5,94 @@ Sistema automatizado de coleta, análise e alerta de odds para futebol.
 Compara as odds da ROP/DP Sports com 9 concorrentes e gera relatórios
 de inteligência competitiva enviados via Telegram.
 
+**100% Online** — roda na nuvem sem instalar nada no seu computador.
+
 ---
 
-## Instalação Rápida
+## Deploy na Nuvem (Recomendado)
 
-### 1. Requisitos
-- Python 3.11+
-- Google Chrome ou Chromium (para o scraper)
+### Opção 1: Railway (Mais fácil — 1 clique)
 
-### 2. Instalar dependências
+1. Crie uma conta grátis em [railway.app](https://railway.app)
+2. Clique em **"New Project" → "Deploy from GitHub Repo"**
+3. Selecione este repositório
+4. Na aba **Variables**, adicione:
+   - `TELEGRAM_BOT_TOKEN` = token do seu bot (veja abaixo como criar)
+   - `TELEGRAM_CHAT_ID` = ID do grupo Telegram
+   - `API_KEY` = uma senha qualquer para proteger a API
+   - `SCHEDULE_TIMES` = `09:00,14:00,17:00,19:00`
+   - `TIMEZONE` = `America/Sao_Paulo`
+5. Clique **Deploy** — pronto!
+
+Railway dá um domínio grátis (ex: `ropodds-production.up.railway.app`).
+
+### Opção 2: Render
+
+1. Crie uma conta em [render.com](https://render.com)
+2. **New → Web Service → Connect GitHub**
+3. Selecione o repositório
+4. Runtime: **Docker**
+5. Adicione as variáveis de ambiente (mesmas do Railway)
+6. Clique **Create Web Service**
+
+### Opção 3: Fly.io
+
 ```bash
-cd ropodds
-pip install -r requirements.txt
-playwright install chromium
+# Instale o flyctl
+curl -L https://fly.io/install.sh | sh
+fly auth login
+fly launch    # Responda as perguntas
+fly secrets set TELEGRAM_BOT_TOKEN=xxx TELEGRAM_CHAT_ID=xxx API_KEY=xxx
+fly deploy
 ```
 
-### 3. Configurar o Telegram Bot
-```bash
-python setup_telegram.py
-```
-Ou configure manualmente:
-1. Crie um bot com @BotFather no Telegram
-2. Adicione o bot ao grupo desejado
-3. Copie o `.env.example` para `.env` e preencha:
-```bash
-cp .env.example .env
-# Edite o .env com seu token e chat_id
-```
+---
 
-### 4. Configurar os sites concorrentes
-Edite `config/sites.yaml` com as URLs dos concorrentes.
+## Como Criar o Bot do Telegram
+
+1. Abra o Telegram e procure **@BotFather**
+2. Envie `/newbot`
+3. Escolha um nome: `ROP Odds Alert`
+4. Escolha um username: `rop_odds_alert_bot`
+5. Copie o **token** que o BotFather enviar
+6. Adicione o bot ao grupo desejado
+7. Para pegar o **Chat ID** do grupo:
+   - Envie uma mensagem no grupo
+   - Acesse: `https://api.telegram.org/bot<SEU_TOKEN>/getUpdates`
+   - Procure o campo `"chat":{"id":-XXXXX}` — esse é o Chat ID
 
 ---
 
 ## Como Usar
 
-### Modo Automático (Scheduler)
-Roda análises nos horários configurados (09:00, 14:00, 17:00, 19:00):
+### Via Dashboard Web (recomendado)
+Acesse a URL do seu deploy (ex: `https://ropodds.up.railway.app`):
+- **/** — Dashboard com alertas, relatórios e histórico
+- **/input** — Formulário para colar dados manualmente e gerar relatório
+
+### Via API (webhook)
 ```bash
-python main.py
+# Enviar dados manuais
+curl -X POST https://SEU-DOMINIO/api/webhook/manual \
+  -H "X-API-Key: SUA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"data": "Jogo: Time A vs Time B\n...", "date": "2026-03-08"}'
+
+# Disparar scraping automático
+curl -X POST https://SEU-DOMINIO/api/webhook/scrape \
+  -H "X-API-Key: SUA_API_KEY"
+
+# Testar Telegram
+curl -X POST https://SEU-DOMINIO/api/webhook/test-telegram \
+  -H "X-API-Key: SUA_API_KEY"
 ```
 
-### Rodar Análise Agora
+### Execução Local (opcional)
 ```bash
-python main.py --run-now
-python main.py --run-now --date 2026-03-08
-```
-
-### Modo Manual (colar dados)
-```bash
-python main.py --manual
-```
-Ou a partir de um arquivo:
-```bash
-python main.py --manual-file dados_hoje.txt
-```
-
-### Dashboard Web
-```bash
-python main.py --dashboard
-# Acesse http://localhost:5000
-```
-
-### Testar Telegram
-```bash
-python main.py --test-telegram
+pip install -r requirements.txt
+playwright install chromium
+cp .env.example .env   # Preencha com seus dados
+python main.py         # Scheduler + Dashboard
 ```
 
 ---
@@ -110,8 +133,12 @@ ROP: 1.59, 1.81
 ropodds/
 ├── main.py                 # Ponto de entrada principal
 ├── models.py               # Modelos do banco de dados
+├── Dockerfile              # Container para deploy cloud
+├── docker-compose.yml      # Execução local com Docker
+├── railway.toml            # Config Railway
+├── fly.toml                # Config Fly.io
+├── Procfile                # Config Render/Heroku
 ├── requirements.txt        # Dependências Python
-├── setup_telegram.py       # Configurador do Telegram
 ├── .env.example            # Template de configuração
 ├── config/
 │   ├── settings.py         # Configurações do sistema
@@ -128,9 +155,12 @@ ropodds/
 ├── telegram_bot/
 │   └── bot.py              # Integração com Telegram
 ├── dashboard/
-│   ├── app.py              # Servidor web Flask
+│   ├── app.py              # Servidor web Flask + API webhooks
 │   └── templates/
-│       └── index.html      # Dashboard HTML
+│       ├── index.html      # Dashboard principal
+│       └── input.html      # Formulário de input manual
+├── .github/workflows/
+│   └── deploy-railway.yml  # CI/CD automático
 ├── data/                   # Banco de dados SQLite
 └── logs/                   # Logs do sistema
 ```
