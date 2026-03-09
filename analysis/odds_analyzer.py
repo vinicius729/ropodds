@@ -192,10 +192,12 @@ class OddsAnalyzer:
                         best_odd_site=market.best_odd_site,
                     ))
 
-            # Analyze secondary markets (BTTS, O/U 2.5)
+            # Analyze secondary markets (BTTS, O/U 1.5, O/U 2.5)
             for market_key, market_name, attr in [
                 ("btts_yes", "Ambos Marcam - Sim", "odd_btts_yes"),
                 ("btts_no", "Ambos Marcam - Não", "odd_btts_no"),
+                ("over_15", "Mais 1.5 Gols", "odd_over_15"),
+                ("under_15", "Menos 1.5 Gols", "odd_under_15"),
                 ("over_25", "Mais 2.5 Gols", "odd_over_25"),
                 ("under_25", "Menos 2.5 Gols", "odd_under_25"),
             ]:

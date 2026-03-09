@@ -1,4 +1,4 @@
-"""Report Generator — produces formatted reports for WhatsApp/Telegram."""
+"""Report Generator — produces formatted reports matching the exact template."""
 
 import logging
 from datetime import datetime
@@ -7,37 +7,121 @@ from analysis.odds_analyzer import OddsAnalyzer, EventAnalysis, MarketAnalysis
 
 logger = logging.getLogger(__name__)
 
+# Championship flag emojis
+CHAMPIONSHIP_FLAGS = {
+    # Europe
+    "bundesliga": "🇩🇪",
+    "laliga": "🇪🇸",
+    "la liga": "🇪🇸",
+    "serie a": "🇮🇹",
+    "ligue 1": "🇫🇷",
+    "premier league": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "eredivisie": "🇳🇱",
+    "primeira liga": "🇵🇹",
+    "fa cup": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "champions league": "🇪🇺",
+    "europa league": "🇪🇺",
+    "conference league": "🇪🇺",
+    # Brazil
+    "brasileirão": "🇧🇷",
+    "brasileirao": "🇧🇷",
+    "série a": "🇧🇷",
+    "série b": "🇧🇷",
+    "carioca": "🇧🇷",
+    "paulista": "🇧🇷",
+    "mineiro": "🇧🇷",
+    "gaúcho": "🇧🇷",
+    "gaucho": "🇧🇷",
+    "baiano": "🇧🇷",
+    "catarinense": "🇧🇷",
+    "cearense": "🇧🇷",
+    "pernambucano": "🇧🇷",
+    "paraense": "🇧🇷",
+    "copa do brasil": "🇧🇷",
+    # South America
+    "libertadores": "🌎",
+    "sul-americana": "🌎",
+    "copa america": "🌎",
+    # Other
+    "mls": "🇺🇸",
+}
+
+# Alert threshold (percentage)
+ALERT_THRESHOLD = 2.0
+
+
+def _get_flag(championship: str) -> str:
+    """Get flag emoji for a championship."""
+    lower = championship.lower()
+    # Check for "Brasil - Campeonato X" format
+    if lower.startswith("brasil"):
+        for kw, flag in CHAMPIONSHIP_FLAGS.items():
+            if kw in lower:
+                return flag
+        return "🇧🇷"
+    for kw, flag in CHAMPIONSHIP_FLAGS.items():
+        if kw in lower:
+            return flag
+    # Try country prefix
+    country_flags = {
+        "itália": "🇮🇹", "espanha": "🇪🇸", "alemanha": "🇩🇪",
+        "frança": "🇫🇷", "portugal": "🇵🇹", "holanda": "🇳🇱",
+        "inglaterra": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "méxico": "🇲🇽", "argentina": "🇦🇷",
+        "chile": "🇨🇱", "uruguai": "🇺🇾", "paraguai": "🇵🇾",
+        "colômbia": "🇨🇴", "peru": "🇵🇪", "equador": "🇪🇨",
+        "turquia": "🇹🇷", "grécia": "🇬🇷", "bélgica": "🇧🇪",
+        "estados unidos": "🇺🇸", "japão": "🇯🇵", "coreia": "🇰🇷",
+    }
+    for kw, flag in country_flags.items():
+        if kw in lower:
+            return flag
+    return "⚽"
+
+
+def _fmt_odd(val) -> str:
+    """Format an odd value."""
+    if val is None:
+        return "—"
+    return f"{val:.2f}"
+
+
+def _fmt_pct(rop_val, avg_val) -> str:
+    """Format ROP vs Market percentage."""
+    if rop_val is None or avg_val is None or avg_val == 0:
+        return "—"
+    pct = ((rop_val - avg_val) / avg_val) * 100
+    if abs(pct) < 0.05:
+        return "—"
+    sign = "+" if pct > 0 else ""
+    result = f"{sign}{pct:.1f}%"
+    if pct > ALERT_THRESHOLD:
+        result += " ✅"
+    elif pct < -ALERT_THRESHOLD:
+        result += " ⚠️"
+    return result
+
 
 class ReportGenerator:
-    """Generates formatted reports in the exact WhatsApp/Telegram format."""
+    """Generates formatted reports in the exact Telegram template format."""
 
     def __init__(self, analyzer: OddsAnalyzer):
         self.analyzer = analyzer
 
     def generate_full_report(self, report_date: str = "", collection_time: str = "") -> str:
-        """
-        Generate the complete report in the specified format.
-
-        Args:
-            report_date: Date string (DD/MM/YYYY). Defaults to today.
-            collection_time: Time of data collection (HH:MM). Defaults to now.
-        """
         if not report_date:
             report_date = datetime.now().strftime("%d/%m/%Y")
         if not collection_time:
             collection_time = datetime.now().strftime("%H:%M")
 
         parts = [
-            self._header(report_date),
+            self._header(report_date, collection_time),
             self._highlights(),
-            self._pre_match_analysis(),
-            self._live_games(),
-            self._executive_summary(),
-            self._strategic_recommendations(),
-            self._footer(collection_time, report_date),
+            self._championship_sections(),
+            self._legend(),
+            self._footer(report_date, collection_time),
         ]
 
-        return "\n".join(parts)
+        return "\n".join(p for p in parts if p)
 
     def generate_alert_message(self) -> str:
         """Generate a short alert message for immediate Telegram notifications."""
@@ -68,271 +152,229 @@ class ReportGenerator:
             lines.append("")
 
         lines.append(f"📊 Total: {len(alerts_above)} acima | {len(alerts_below)} abaixo")
-        lines.append(f"_Relatório completo disponível no dashboard._")
-
         return "\n".join(lines)
 
-    def _header(self, report_date: str) -> str:
+    def _header(self, report_date: str, collection_time: str) -> str:
+        # Collect monitored site names
+        site_names = set()
+        for event in self.analyzer.events:
+            for market in event.markets.values():
+                if market.rop_odd is not None:
+                    site_names.add("ROP/DP Sports")
+                for sn in market.competitor_odds:
+                    site_names.add(sn)
+
+        # Order: ROP first, then alphabetical
+        ordered = []
+        if "ROP/DP Sports" in site_names:
+            ordered.append("ROP/DP Sports")
+            site_names.discard("ROP/DP Sports")
+        ordered.extend(sorted(site_names))
+        sites_str = ", ".join(ordered) if ordered else "—"
+
         return (
-            f"📊 *ANÁLISE DE ODDS — {report_date}* 📊\n"
-            f"*Relatório de inteligência competitiva — ROP Soluções / DP Sports*\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━"
+            f"# 📊 RELATÓRIO COMPETITIVO DE ODDS — {report_date}\n"
+            f"**Gerado em:** {report_date} às {collection_time} BRT\n"
+            f"**Sites monitorados:** {sites_str}\n"
+            f"**Mercados analisados:** Resultado 1X2 | Mais/Menos 1.5 Gols | Mais/Menos 2.5 Gols | Ambos Marcam\n"
+            f"---"
         )
 
     def _highlights(self) -> str:
-        """Generate the highlights section."""
-        lines = [
-            "\n🎯 *DESTAQUES DO DIA*",
-            "━━━━━━━━━━━━━━━━━━━━━━",
-        ]
+        """Generate DESTAQUES DO DIA section."""
+        lines = ["## 🎯 DESTAQUES DO DIA"]
 
-        opportunities = self.analyzer.get_opportunities()
-        attention = self.analyzer.get_attention_points()
+        # Find all markets where ROP is above average by > ALERT_THRESHOLD %
+        highlights_above = []
+        highlights_below = []
 
-        if opportunities:
-            top = opportunities[:3]
-            games_text = ", ".join(
-                f"{a.home_team} vs {a.away_team} ({a.market}: {a.rop_odd:.2f} vs. média {a.market_avg:.2f})"
-                for a in top
-            )
-            lines.append(
-                f"\nA ROP se destaca hoje com odds superiores à média em: {games_text}. "
-                f"Esses são diferenciais competitivos que devem ser mantidos."
-            )
-
-        if attention:
-            top = attention[:3]
-            games_text = ", ".join(
-                f"{a.home_team} vs {a.away_team} ({a.market}: {a.rop_odd:.2f} vs. média {a.market_avg:.2f})"
-                for a in top
-            )
-            lines.append(
-                f"\nEm contrapartida, exigem atenção: {games_text}. "
-                f"Revisão recomendada para manter competitividade."
-            )
-
-        if not opportunities and not attention:
-            lines.append(
-                "\nTodas as odds da ROP estão dentro da faixa de ±3% da média dos concorrentes. "
-                "Posicionamento equilibrado e competitivo hoje."
-            )
-
-        return "\n".join(lines)
-
-    def _pre_match_analysis(self) -> str:
-        """Generate the pre-match analysis section."""
-        lines = [
-            "\n━━━━━━━━━━━━━━━━━━━━━━",
-            "⚽ *ANÁLISE PRÉ-JOGO*",
-            "━━━━━━━━━━━━━━━━━━━━━━",
-        ]
-
-        current_champ = ""
         for event in self.analyzer.events:
-            # Championship header
-            if event.championship != current_champ:
-                current_champ = event.championship
-                lines.append(f"\n🏆 *{current_champ or 'Campeonato não identificado'}*")
+            for key, market in event.markets.items():
+                if market.rop_odd is None or market.avg_competitors is None:
+                    continue
+                if market.avg_competitors == 0:
+                    continue
+                pct = ((market.rop_odd - market.avg_competitors) / market.avg_competitors) * 100
+                item = (event, market, pct)
+                if pct > ALERT_THRESHOLD:
+                    highlights_above.append(item)
+                elif pct < -ALERT_THRESHOLD:
+                    highlights_below.append(item)
 
-            lines.append(self._format_event(event))
+        # Sort by deviation descending
+        highlights_above.sort(key=lambda x: -x[2])
+        highlights_below.sort(key=lambda x: x[2])
 
+        if highlights_above:
+            lines.append("### Odds ROP acima do mercado:")
+            for event, market, pct in highlights_above:
+                market_label = self._market_label(market.market_name)
+                lines.append(
+                    f"- ✅ **{event.home_team} vs {event.away_team}** — "
+                    f"{market_label}: ROP {market.rop_odd:.2f} vs Média {market.avg_competitors:.2f} "
+                    f"(+{pct:.1f}%)"
+                )
+
+        if highlights_below:
+            lines.append("### Odds ROP abaixo do mercado:")
+            for event, market, pct in highlights_below:
+                market_label = self._market_label(market.market_name)
+                lines.append(
+                    f"- ⚠️ **{event.home_team} vs {event.away_team}** — "
+                    f"{market_label}: ROP {market.rop_odd:.2f} vs Média {market.avg_competitors:.2f} "
+                    f"({pct:.1f}%)"
+                )
+
+        if not highlights_above and not highlights_below:
+            lines.append("Todas as odds da ROP estão dentro da faixa de ±2% da média dos concorrentes.")
+
+        lines.append("---")
         return "\n".join(lines)
 
-    def _format_event(self, event: EventAnalysis) -> str:
-        """Format a single event block."""
-        time_str = f" | {event.match_time} BRT" if event.match_time else ""
-        lines = [
-            f"\n🆚 *{event.home_team} vs {event.away_team}*{time_str}",
-        ]
+    def _championship_sections(self) -> str:
+        """Generate all championship sections with event tables."""
+        # Group events by championship
+        champ_events: dict[str, list[EventAnalysis]] = {}
+        for event in self.analyzer.events:
+            champ = event.championship or "Outros"
+            if champ not in champ_events:
+                champ_events[champ] = []
+            champ_events[champ].append(event)
 
-        # 1X2 Market
+        # Sort championships
+        sections = []
+        for champ in sorted(champ_events.keys()):
+            events = champ_events[champ]
+            # Sort by match time
+            events.sort(key=lambda e: e.match_time or "99:99")
+
+            flag = _get_flag(champ)
+            section_lines = [f"## {flag} {champ}"]
+
+            for event in events:
+                section_lines.append(self._format_event_table(event))
+                section_lines.append("---")
+
+            sections.append("\n".join(section_lines))
+
+        return "\n".join(sections)
+
+    def _format_event_table(self, event: EventAnalysis) -> str:
+        """Format a single event with full odds table matching the template."""
+        time_str = f" | {event.match_time} BRT" if event.match_time else ""
+        lines = [f"### ⚽ {event.home_team} vs {event.away_team}{time_str}"]
+
+        # Get 1X2 markets
         m_home = event.markets.get("1x2_home")
         m_draw = event.markets.get("1x2_draw")
         m_away = event.markets.get("1x2_away")
 
         if m_home or m_draw or m_away:
-            lines.append("*Resultado 1X2:*")
+            lines.append("**RESULTADO 1X2**")
 
-            rop_home = f"*{m_home.rop_odd:.2f}*" if m_home and m_home.rop_odd else "-"
-            rop_draw = f"*{m_draw.rop_odd:.2f}*" if m_draw and m_draw.rop_odd else "-"
-            rop_away = f"*{m_away.rop_odd:.2f}*" if m_away and m_away.rop_odd else "-"
-            lines.append(f"• *ROP:* {rop_home} | {rop_draw} | {rop_away} {event.overall_emoji}")
+            # Collect all competitor site names across all markets
+            all_sites = set()
+            for m in [m_home, m_draw, m_away]:
+                if m:
+                    all_sites.update(m.competitor_odds.keys())
+            site_list = sorted(all_sites)
 
-            avg_home = f"{m_home.avg_competitors:.2f}" if m_home and m_home.avg_competitors else "-"
-            avg_draw = f"{m_draw.avg_competitors:.2f}" if m_draw and m_draw.avg_competitors else "-"
-            avg_away = f"{m_away.avg_competitors:.2f}" if m_away and m_away.avg_competitors else "-"
-            lines.append(f"• Média Conc.: {avg_home} | {avg_draw} | {avg_away}")
+            # Table header
+            lines.append("| Site | Casa | Empate | Fora |")
+            lines.append("|:-----|:----:|:------:|:----:|")
 
-            best_parts = []
-            for m, label in [(m_home, "Casa"), (m_draw, "Empate"), (m_away, "Fora")]:
-                if m and m.best_odd:
-                    best_parts.append(f"{m.best_odd:.2f} ({m.best_odd_site})")
-                else:
-                    best_parts.append("-")
-            lines.append(f"• Melhor Odd: {' | '.join(best_parts)}")
+            # ROP row
+            rop_h = _fmt_odd(m_home.rop_odd if m_home else None)
+            rop_d = _fmt_odd(m_draw.rop_odd if m_draw else None)
+            rop_a = _fmt_odd(m_away.rop_odd if m_away else None)
+            lines.append(f"| **ROP/DP Sports** | **{rop_h}** | **{rop_d}** | **{rop_a}** |")
 
-        # Secondary markets
-        btts_yes = event.markets.get("btts_yes")
-        btts_no = event.markets.get("btts_no")
-        over_25 = event.markets.get("over_25")
-        under_25 = event.markets.get("under_25")
+            # Competitor rows
+            for site in site_list:
+                h = _fmt_odd(m_home.competitor_odds.get(site) if m_home else None)
+                d = _fmt_odd(m_draw.competitor_odds.get(site) if m_draw else None)
+                a = _fmt_odd(m_away.competitor_odds.get(site) if m_away else None)
+                lines.append(f"| {site} | {h} | {d} | {a} |")
 
-        has_secondary = any(
+            # Average row
+            avg_h = _fmt_odd(m_home.avg_competitors if m_home else None)
+            avg_d = _fmt_odd(m_draw.avg_competitors if m_draw else None)
+            avg_a = _fmt_odd(m_away.avg_competitors if m_away else None)
+            lines.append(f"| **Média Concorrentes** | **{avg_h}** | **{avg_d}** | **{avg_a}** |")
+
+            # ROP vs Market row
+            pct_h = _fmt_pct(
+                m_home.rop_odd if m_home else None,
+                m_home.avg_competitors if m_home else None
+            )
+            pct_d = _fmt_pct(
+                m_draw.rop_odd if m_draw else None,
+                m_draw.avg_competitors if m_draw else None
+            )
+            pct_a = _fmt_pct(
+                m_away.rop_odd if m_away else None,
+                m_away.avg_competitors if m_away else None
+            )
+            lines.append(f"| **ROP vs Mercado** | **{pct_h}** | **{pct_d}** | **{pct_a}** |")
+
+        # Goals markets table
+        m_over15 = event.markets.get("over_15")
+        m_under15 = event.markets.get("under_15")
+        m_over25 = event.markets.get("over_25")
+        m_under25 = event.markets.get("under_25")
+        m_btts_yes = event.markets.get("btts_yes")
+        m_btts_no = event.markets.get("btts_no")
+
+        has_goals = any(
             m and m.rop_odd is not None
-            for m in [btts_yes, btts_no, over_25, under_25]
+            for m in [m_over15, m_under15, m_over25, m_under25, m_btts_yes, m_btts_no]
         )
 
-        if has_secondary:
-            lines.append("*Outros Mercados (ROP):*")
+        if has_goals:
+            lines.append("**MERCADOS DE GOLS**")
+            lines.append("| Mercado | Mais | Menos |")
+            lines.append("|:--------|:----:|:-----:|")
 
-            if btts_yes or btts_no:
-                yes_val = f"*{btts_yes.rop_odd:.2f}*" if btts_yes and btts_yes.rop_odd else "-"
-                no_val = f"*{btts_no.rop_odd:.2f}*" if btts_no and btts_no.rop_odd else "-"
-                lines.append(f"• Ambos Marcam: Sim {yes_val} / Não {no_val}")
+            over15 = _fmt_odd(m_over15.rop_odd if m_over15 else None)
+            under15 = _fmt_odd(m_under15.rop_odd if m_under15 else None)
+            lines.append(f"| **Mais/Menos 1.5 Gols (ROP)** | {over15} | {under15} |")
 
-            if over_25 or under_25:
-                over_val = f"*{over_25.rop_odd:.2f}*" if over_25 and over_25.rop_odd else "-"
-                under_val = f"*{under_25.rop_odd:.2f}*" if under_25 and under_25.rop_odd else "-"
-                lines.append(f"• Mais/Menos 2.5: Mais {over_val} / Menos {under_val}")
-        else:
-            lines.append("*Outros Mercados (ROP):*")
-            lines.append("• Ambos Marcam: Sem dados disponíveis")
-            lines.append("• Mais/Menos 2.5: Sem dados disponíveis")
+            over25 = _fmt_odd(m_over25.rop_odd if m_over25 else None)
+            under25 = _fmt_odd(m_under25.rop_odd if m_under25 else None)
+            lines.append(f"| **Mais/Menos 2.5 Gols (ROP)** | {over25} | {under25} |")
 
-        # Analysis comment
-        comment = self._generate_comment(event)
-        lines.append(f"\n📌 *Análise:* {comment}")
-        lines.append("---")
+            btts_y = _fmt_odd(m_btts_yes.rop_odd if m_btts_yes else None)
+            btts_n = _fmt_odd(m_btts_no.rop_odd if m_btts_no else None)
+            lines.append(f"| **Ambos Marcam (ROP)** | Sim: {btts_y} | Não: {btts_n} |")
 
         return "\n".join(lines)
 
-    def _generate_comment(self, event: EventAnalysis) -> str:
-        """Generate a 1-2 line analytical comment for an event."""
-        alerts_above = []
-        alerts_below = []
+    def _market_label(self, market_name: str) -> str:
+        """Convert internal market name to display label."""
+        labels = {
+            "1X2 - Casa": "Casa",
+            "1X2 - Empate": "Empate",
+            "1X2 - Fora": "Fora",
+            "Ambos Marcam - Sim": "Ambos Marcam Sim",
+            "Ambos Marcam - Não": "Ambos Marcam Não",
+            "Mais 2.5 Gols": "Mais 2.5",
+            "Menos 2.5 Gols": "Menos 2.5",
+            "Mais 1.5 Gols": "Mais 1.5",
+            "Menos 1.5 Gols": "Menos 1.5",
+        }
+        return labels.get(market_name, market_name)
 
-        for key, market in event.markets.items():
-            if market.status == "above" and market.rop_odd:
-                alerts_above.append((market.market_name, market.deviation_pct))
-            elif market.status == "below" and market.rop_odd:
-                alerts_below.append((market.market_name, market.deviation_pct))
-
-        if alerts_above and not alerts_below:
-            markets = ", ".join(f"{m} (+{d:.1f}%)" for m, d in alerts_above)
-            return f"ROP acima da média em {markets}. Diferencial competitivo positivo."
-
-        if alerts_below and not alerts_above:
-            markets = ", ".join(f"{m} ({d:.1f}%)" for m, d in alerts_below)
-            return f"ROP abaixo da média em {markets}. Revisão recomendada."
-
-        if alerts_above and alerts_below:
-            above = ", ".join(m for m, _ in alerts_above)
-            below = ", ".join(m for m, _ in alerts_below)
-            return f"Mercado misto: acima em {above}, abaixo em {below}."
-
-        return "Posicionamento equilibrado. Odds dentro da faixa de ±3% da média."
-
-    def _live_games(self) -> str:
-        """Generate live games section."""
+    def _legend(self) -> str:
         return (
-            "\n━━━━━━━━━━━━━━━━━━━━━━\n"
-            "🔴 *JOGOS AO VIVO*\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "Nenhum jogo ao vivo no momento da coleta."
+            "## 📋 LEGENDA\n"
+            "| Símbolo | Significado |\n"
+            "|:-------:|:-----------|\n"
+            "| ✅ | Odd da ROP mais de 2% acima da média dos concorrentes |\n"
+            "| ⚠️ | Odd da ROP mais de 2% abaixo da média dos concorrentes |\n"
+            "| — | Dado não disponível no site |\n"
+            "> **Nota:** Dados coletados diretamente dos sites em tempo real. "
+            "Odds podem sofrer alterações até o início dos jogos."
         )
 
-    def _executive_summary(self) -> str:
-        """Generate executive summary."""
-        lines = [
-            "\n━━━━━━━━━━━━━━━━━━━━━━",
-            "📋 *RESUMO EXECUTIVO*",
-            "━━━━━━━━━━━━━━━━━━━━━━",
-        ]
-
-        opportunities = self.analyzer.get_opportunities()
-        attention = self.analyzer.get_attention_points()
-        stats = self.analyzer.get_summary_stats()
-
-        lines.append("\n*✅ Oportunidades — ROP acima da média:*")
-        if opportunities:
-            seen = set()
-            for a in opportunities:
-                key = f"{a.home_team} vs {a.away_team}"
-                if key not in seen:
-                    lines.append(f"• {key}: {a.market} ({a.rop_odd:.2f})")
-                    seen.add(key)
-        else:
-            lines.append("• Nenhuma oportunidade identificada nesta coleta.")
-
-        lines.append("\n*⚠️ Pontos de Atenção — ROP abaixo da média:*")
-        if attention:
-            seen = set()
-            for a in attention:
-                key = f"{a.home_team} vs {a.away_team}"
-                if key not in seen:
-                    lines.append(f"• {key}: {a.market} ({a.rop_odd:.2f} vs. média {a.market_avg:.2f})")
-                    seen.add(key)
-        else:
-            lines.append("• Nenhum ponto de atenção nesta coleta.")
-
-        lines.append("\n*📊 Cobertura de Jogos:*")
-        lines.append(f"• ROP cobriu {stats['rop_covered']} de {stats['total_events']} jogos analisados hoje.")
-
-        missing = stats["championships_missing"]
-        if missing:
-            lines.append(f"• Campeonatos sem cobertura da ROP: {', '.join(missing)}.")
-        else:
-            lines.append("• Campeonatos sem cobertura da ROP: Nenhum.")
-
-        return "\n".join(lines)
-
-    def _strategic_recommendations(self) -> str:
-        """Generate strategic recommendations."""
-        lines = [
-            "\n━━━━━━━━━━━━━━━━━━━━━━",
-            "💡 *RECOMENDAÇÕES ESTRATÉGICAS*",
-            "━━━━━━━━━━━━━━━━━━━━━━",
-        ]
-
-        attention = self.analyzer.get_attention_points()
-        opportunities = self.analyzer.get_opportunities()
-
-        # Recommendation 1: Immediate adjustment
-        if attention:
-            worst = max(attention, key=lambda a: abs(a.deviation_pct))
-            lines.append(
-                f"\n1. *Ajuste Imediato:* Revisar {worst.market} em "
-                f"{worst.home_team} vs {worst.away_team} — "
-                f"ROP {worst.rop_odd:.2f} está {abs(worst.deviation_pct):.1f}% abaixo "
-                f"da média ({worst.market_avg:.2f})."
-            )
-        else:
-            lines.append("\n1. *Ajuste Imediato:* Nenhum ajuste urgente necessário hoje.")
-
-        # Recommendation 2: Maintain position
-        if opportunities:
-            best = max(opportunities, key=lambda a: a.deviation_pct)
-            lines.append(
-                f"2. *Manter Posição:* {best.market} em "
-                f"{best.home_team} vs {best.away_team} — "
-                f"ROP oferece {best.rop_odd:.2f}, {best.deviation_pct:.1f}% acima da média. "
-                f"Manter este diferencial competitivo."
-            )
-        else:
-            lines.append("2. *Manter Posição:* Posicionamento geral equilibrado. Manter odds atuais.")
-
-        # Recommendation 3: Observation
-        stats = self.analyzer.get_summary_stats()
-        total_alerts = stats["alerts_above"] + stats["alerts_below"]
-        lines.append(
-            f"3. *Observação:* {total_alerts} alertas gerados nesta coleta. "
-            f"Monitorar evolução das odds ao vivo nos jogos da tarde."
-        )
-
-        return "\n".join(lines)
-
-    def _footer(self, collection_time: str, report_date: str) -> str:
-        return (
-            f"\n---\n"
-            f"_Dados coletados às {collection_time} BRT — {report_date}_"
-        )
+    def _footer(self, report_date: str, collection_time: str) -> str:
+        return f"*Relatório gerado automaticamente em {report_date} às {collection_time} BRT*"

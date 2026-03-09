@@ -20,8 +20,8 @@ DASHBOARD_SECRET_KEY = os.getenv("DASHBOARD_SECRET_KEY", "rop-odds-secret-key")
 API_KEY = os.getenv("API_KEY", "rop-default-api-key")
 
 # Alert Thresholds (percentage)
-ALERT_THRESHOLD_ABOVE = float(os.getenv("ALERT_THRESHOLD_ABOVE", "3.0"))
-ALERT_THRESHOLD_BELOW = float(os.getenv("ALERT_THRESHOLD_BELOW", "3.0"))
+ALERT_THRESHOLD_ABOVE = float(os.getenv("ALERT_THRESHOLD_ABOVE", "2.0"))
+ALERT_THRESHOLD_BELOW = float(os.getenv("ALERT_THRESHOLD_BELOW", "2.0"))
 
 # Scraping
 HEADLESS_BROWSER = os.getenv("HEADLESS_BROWSER", "true").lower() == "true"
