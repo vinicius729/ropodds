@@ -18,7 +18,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -31,6 +31,9 @@ from analysis.report_generator import ReportGenerator
 from telegram_bot.bot import TelegramNotifier
 from models import init_db, ScrapeSession, OddsRecord, Alert, DailyReport
 
+# Brasilia timezone (UTC-3)
+BRT = timezone(timedelta(hours=-3))
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -41,6 +44,11 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("ropodds")
+
+
+def now_brt() -> datetime:
+    """Get current datetime in Brasilia timezone."""
+    return datetime.now(BRT)
 
 
 class ROPOddsSystem:
@@ -57,17 +65,19 @@ class ROPOddsSystem:
 
     async def run_analysis(self, target_date: str | None = None) -> str:
         """Run a complete analysis cycle: scrape → analyze → report → alert."""
+        current_time = now_brt()
+
         if target_date is None:
-            target_date = datetime.now().strftime("%Y-%m-%d")
+            target_date = current_time.strftime("%Y-%m-%d")
 
         session = self.Session()
-        db_session = ScrapeSession(started_at=datetime.utcnow(), status="running")
+        db_session = ScrapeSession(started_at=current_time, status="running")
         session.add(db_session)
         session.commit()
 
         try:
             # 1. Scrape all sites
-            logger.info(f"=== Starting analysis for {target_date} ===")
+            logger.info(f"=== Starting analysis for {target_date} at {current_time.strftime('%H:%M')} BRT ===")
             all_data = await self.scraper_manager.scrape_all(target_date)
 
             # 2. Save raw data to DB
@@ -97,10 +107,10 @@ class ROPOddsSystem:
             # 3. Analyze
             events = self.analyzer.analyze(all_data)
 
-            # 4. Generate report
+            # 4. Generate report (always in BRT)
             report_gen = ReportGenerator(self.analyzer)
             report_date = datetime.strptime(target_date, "%Y-%m-%d").strftime("%d/%m/%Y")
-            collection_time = datetime.now().strftime("%H:%M")
+            collection_time = now_brt().strftime("%H:%M")
             full_report = report_gen.generate_full_report(report_date, collection_time)
 
             # 5. Save report to DB
@@ -142,13 +152,13 @@ class ROPOddsSystem:
 
                 # Then send full report
                 await self.telegram.send_report(full_report)
-                logger.info("Reports sent to Telegram")
+                logger.info("Reports sent to Telegram successfully")
             except Exception as e:
-                logger.warning(f"Telegram sending failed: {e}")
+                logger.error(f"Telegram sending failed: {e}")
 
             # Update session
             db_session.status = "completed"
-            db_session.finished_at = datetime.utcnow()
+            db_session.finished_at = now_brt()
             db_session.total_events = stats["total_events"]
             db_session.total_alerts = stats["alerts_above"] + stats["alerts_below"]
             session.commit()
@@ -170,7 +180,7 @@ class ROPOddsSystem:
     async def run_manual_analysis(self, input_text: str, target_date: str = "") -> str:
         """Run analysis from manually input data."""
         if not target_date:
-            target_date = datetime.now().strftime("%Y-%m-%d")
+            target_date = now_brt().strftime("%Y-%m-%d")
 
         records = parse_manual_input(input_text, target_date)
 
@@ -185,7 +195,7 @@ class ROPOddsSystem:
         events = self.analyzer.analyze(all_data)
         report_gen = ReportGenerator(self.analyzer)
         report_date = datetime.strptime(target_date, "%Y-%m-%d").strftime("%d/%m/%Y")
-        collection_time = datetime.now().strftime("%H:%M")
+        collection_time = now_brt().strftime("%H:%M")
         report = report_gen.generate_full_report(report_date, collection_time)
 
         # Send to Telegram
@@ -200,7 +210,7 @@ class ROPOddsSystem:
         return report
 
     def start_scheduler(self):
-        """Start the APScheduler with configured times."""
+        """Start the APScheduler with configured times in BRT."""
         scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 
         for time_str in SCHEDULE_TIMES:
@@ -210,14 +220,15 @@ class ROPOddsSystem:
                 self.run_analysis,
                 trigger=trigger,
                 id=f"analysis_{time_str}",
-                name=f"Odds Analysis at {time_str}",
-                misfire_grace_time=300,
+                name=f"Odds Analysis at {time_str} BRT",
+                misfire_grace_time=600,  # 10 min grace period
+                max_instances=1,
             )
-            logger.info(f"Scheduled analysis at {time_str} BRT")
+            logger.info(f"Scheduled analysis at {time_str} BRT ({TIMEZONE})")
 
         scheduler.start()
         logger.info(
-            f"Scheduler started. Next runs: "
+            f"Scheduler started. Analysis times: "
             f"{', '.join(SCHEDULE_TIMES)} ({TIMEZONE})"
         )
         return scheduler
@@ -267,6 +278,7 @@ async def main():
         return
 
     # Default: start scheduler + dashboard (cloud mode)
+    logger.info(f"Starting ROP Odds System at {now_brt().strftime('%d/%m/%Y %H:%M')} BRT")
     scheduler = system.start_scheduler()
 
     from dashboard.app import create_app, set_system_instance
